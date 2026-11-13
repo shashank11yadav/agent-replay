@@ -1,0 +1,56 @@
+[project]
+name = "agent-replay"
+version = "0.1.0"
+description = "Record, replay and regression-test LLM agent runs"
+readme = "README.md"
+requires-python = ">=3.12"
+authors = [{ name = "Shashank Yadav" }]
+keywords = ["llm", "agents", "evaluation", "replay", "regression-testing", "opentelemetry"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Framework :: FastAPI",
+    "Typing :: Typed",
+]
+dependencies = [
+    "google-genai==2.34.0",
+    "psycopg[binary]==3.3.6",
+    "psycopg-pool==3.3.3",
+    "pydantic==2.14.2",
+    "pydantic-settings==2.16.2",
+    "opentelemetry-api==1.45.2",
+    "opentelemetry-sdk==1.45.2",
+    "fastapi==0.162.0",
+    "uvicorn==0.54.0",
+    # gemini.py catches httpx transport errors; do not rely on google-genai pulling it in.
+    "httpx==0.28.1",
+]
+
+[project.scripts]
+agent-replay = "agent_replay.cli:main"
+
+[build-system]
+requires = ["uv_build>=0.13.4,<0.14"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest==9.2.0",
+    "ruff==0.17.3",
+    "mypy==2.4.1",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = ["-ra", "--strict-markers", "--strict-config"]
+filterwarnings = [
+    # FastAPI's TestClient still runs on httpx; nothing to act on until it moves.
+    "ignore:Using `httpx` with `starlette.testclient` is deprecated:starlette.exceptions.StarletteDeprecationWarning",
+]
+
+[tool.ruff]
+line-length = 88
+
+[tool.mypy]
+strict = true
+python_version = "3.12"

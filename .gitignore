@@ -1,0 +1,17 @@
+.env
+.env.*
+!.env.example
+node_modules/
+.venv/
+__pycache__/
+.pytest_cache/
+dist/
+build/
+coverage/
+playwright-report/
+test-results/
+.DS_Store
+# Scratch paths of the regression-gate workflow when its steps are run locally.
+gate-ids/
+gate-out/
+.gate-base/
