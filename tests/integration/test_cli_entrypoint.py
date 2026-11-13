@@ -53,9 +53,11 @@ def test_pyproject_declares_python_script_and_dev_deps() -> None:
     assert "agent-replay" in project["scripts"]
     dev: list[str] = list(data.get("dependency-groups", {}).get("dev", []))
     dev += data.get("tool", {}).get("uv", {}).get("dev-dependencies", [])
-    joined = " ".join(str(d) for d in dev).replace(" ", "")
-    for pin in ("pytest==9.2.0", "ruff==0.17.3", "mypy==2.4.1"):
-        assert pin in joined, f"{pin} missing from dev dependencies: {dev}"
+    # Exact pins, so a tool upgrade is a reviewed change (Dependabot bumps them).
+    for tool in ("pytest", "ruff", "mypy"):
+        assert re.search(rf"(^|\s){tool}==\d+\.\d+\.\d+(\s|$)", " ".join(dev)), (
+            f"{tool} must be pinned to an exact version in dev dependencies: {dev}"
+        )
 
 
 # ---- CLI ----------------------------------------------------------------

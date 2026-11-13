@@ -110,7 +110,9 @@ def test_dockerfile_three_stage_build() -> None:
     st = _stages()
     assert len(st) == 3, f"want exactly 3 stages, got {[s['image'] for s in st]}"
     node, builder, final = st
-    assert node["image"] == "node:22.23.4-slim"
+    m = re.fullmatch(r"node:(\d+)\.\d+\.\d+-slim", node["image"])
+    assert m, f"node image must be an exact slim tag: {node['image']}"
+    assert int(m.group(1)) >= 22, "viewer/package.json needs node >= 22"
     runs = " && ".join(_runs(node))
     assert re.search(r"\bnpm ci\b", runs)
     assert re.search(r"\bnpm run build\b", runs)
@@ -118,9 +120,11 @@ def test_dockerfile_three_stage_build() -> None:
 
     assert re.fullmatch(r"python:3\.12\.\d+-slim", builder["image"]), builder["image"]
     uv_copies = [
-        c for c in _copy_from(builder) if c[0] == "ghcr.io/astral-sh/uv:0.13.6"
+        c
+        for c in _copy_from(builder)
+        if re.fullmatch(r"ghcr\.io/astral-sh/uv:\d+\.\d+\.\d+", c[0])
     ]
-    assert uv_copies, "builder must COPY --from=ghcr.io/astral-sh/uv:0.13.6"
+    assert uv_copies, "builder must COPY --from=ghcr.io/astral-sh/uv:<exact version>"
     assert any("/uv" in p for _, paths, _ in uv_copies for p in paths)
     brun = " && ".join(_runs(builder))
     first = "uv sync --locked --no-install-project --no-editable"
