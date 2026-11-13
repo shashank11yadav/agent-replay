@@ -16,7 +16,7 @@ classifiers = [
 ]
 dependencies = [
     "google-genai==3.1.0",
-    "psycopg[binary]==3.3.6",
+    "psycopg[binary]==3.3.8",
     "psycopg-pool==3.3.3",
     "pydantic==2.14.3",
     "pydantic-settings==2.16.2",
