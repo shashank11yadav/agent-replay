@@ -1,0 +1,17 @@
+[
+  {"id": "P100", "name": "Desk Lamp", "price": 41.25, "currency": "USD"},
+  {"id": "P200", "name": "Floor Lamp", "price": 58.4, "currency": "USD"},
+  {"id": "P300", "name": "Notebook", "price": 19.99, "currency": "USD"},
+  {"id": "P400", "name": "Mechanical Keyboard", "price": 87.49, "currency": "USD"},
+  {"id": "P500", "name": "Wireless Mouse", "price": 27.49, "currency": "USD"},
+  {"id": "P600", "name": "Standing Desk", "price": 289.99, "currency": "EUR"},
+  {"id": "P700", "name": "Office Chair", "price": 184.75, "currency": "GBP"},
+  {"id": "P800", "name": "Monitor Stand", "price": 36.25, "currency": "USD"},
+  {"id": "P900", "name": "USB Hub", "price": 17.8, "currency": "EUR"},
+  {"id": "P110", "name": "Webcam", "price": 51.75, "currency": "GBP"},
+  {"id": "P120", "name": "Headphones", "price": 4380.0, "currency": "JPY"},
+  {"id": "P130", "name": "Desk Mat", "price": 14.25, "currency": "USD"},
+  {"id": "P140", "name": "Cable Organizer", "price": 9.35, "currency": "EUR"},
+  {"id": "P150", "name": "Laptop Sleeve", "price": 27.6, "currency": "GBP"},
+  {"id": "P160", "name": "Phone Tripod", "price": 2580.0, "currency": "JPY"}
+]

@@ -1,0 +1,4 @@
+[
+  {"tool_calls": [{"id": "x", "name": "get_order", "args": {"order_id": "A1001"}}]},
+  {"text": "Order A1001 has shipped."}
+]

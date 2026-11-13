@@ -1,0 +1,1 @@
+{"id": "example-1", "prompt": "What is the status of order A1001?", "category": "lookup", "expected_text": ["shipped"], "must_call_tools": ["get_order"], "max_steps": 4, "rubric": "States that order A1001 has shipped."}

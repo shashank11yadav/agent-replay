@@ -1,0 +1,22 @@
+[
+  {"order_id": "A1001", "customer": "Ada Example", "status": "shipped", "items": ["P100", "P200"], "total": 99.65, "currency": "USD"},
+  {"order_id": "A1002", "customer": "Ben Sample", "status": "processing", "items": ["P300"], "total": 19.99, "currency": "USD"},
+  {"order_id": "A1003", "customer": "Cleo Demo", "status": "delivered", "items": ["P100"], "total": 37.95, "currency": "EUR"},
+  {"order_id": "A1004", "customer": "Dara Placeholder", "status": "shipped", "items": ["P100"], "total": 41.25, "currency": "USD"},
+  {"order_id": "A1005", "customer": "Eli Fixture", "status": "processing", "items": ["P300"], "total": 18.39, "currency": "EUR"},
+  {"order_id": "A1006", "customer": "Faye Mockup", "status": "delivered", "items": ["P500"], "total": 21.72, "currency": "GBP"},
+  {"order_id": "A1007", "customer": "Gus Stub", "status": "cancelled", "items": ["P700"], "total": 35079.11, "currency": "JPY"},
+  {"order_id": "A1008", "customer": "Hana Dummy", "status": "returned", "items": ["P900"], "total": 19.35, "currency": "USD"},
+  {"order_id": "A1009", "customer": "Ivo Sample", "status": "shipped", "items": ["P120"], "total": 26.86, "currency": "EUR"},
+  {"order_id": "A1010", "customer": "Juno Testcase", "status": "processing", "items": ["P140"], "total": 8.03, "currency": "GBP"},
+  {"order_id": "A1011", "customer": "Kai Fakeman", "status": "delivered", "items": ["P160"], "total": 2580.0, "currency": "JPY"},
+  {"order_id": "A1012", "customer": "Lia Synthetic", "status": "cancelled", "items": ["P200"], "total": 58.4, "currency": "USD"},
+  {"order_id": "A1013", "customer": "Milo Template", "status": "returned", "items": ["P400"], "total": 80.49, "currency": "EUR"},
+  {"order_id": "A1014", "customer": "Nora Fixture", "status": "shipped", "items": ["P600"], "total": 249.01, "currency": "GBP"},
+  {"order_id": "A1015", "customer": "Otis Demo", "status": "processing", "items": ["P800"], "total": 5437.5, "currency": "JPY"},
+  {"order_id": "A1016", "customer": "Pia Example", "status": "delivered", "items": ["P110"], "total": 65.51, "currency": "USD"},
+  {"order_id": "A1017", "customer": "Quin Sample", "status": "cancelled", "items": ["P130"], "total": 13.11, "currency": "EUR"},
+  {"order_id": "A1018", "customer": "Rex Mockup", "status": "returned", "items": ["P150"], "total": 27.6, "currency": "GBP"},
+  {"order_id": "A1019", "customer": "Sana Stub", "status": "shipped", "items": ["P100"], "total": 6187.5, "currency": "JPY"},
+  {"order_id": "A1020", "customer": "Tess Dummy", "status": "processing", "items": ["P300"], "total": 19.99, "currency": "USD"}
+]
