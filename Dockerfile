@@ -3,7 +3,7 @@
 ARG PYTHON_IMAGE=python:3.12.16-slim
 
 # Stage 1: build the trace viewer.
-FROM node:22.23.4-slim AS viewer
+FROM node:26.13.0-slim AS viewer
 WORKDIR /build/viewer
 COPY viewer/package.json viewer/package-lock.json ./
 RUN npm ci
