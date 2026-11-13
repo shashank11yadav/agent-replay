@@ -15,7 +15,7 @@ FROM ${PYTHON_IMAGE} AS builder
 COPY --from=ghcr.io/astral-sh/uv:0.13.6 /uv /uvx /bin/
 ENV UV_LINK_MODE=copy UV_PYTHON_DOWNLOADS=never UV_COMPILE_BYTECODE=1
 WORKDIR /app
-COPY pyproject.toml uv.lock README.md ./
+COPY pyproject.toml uv.lock README.md LICENSE ./
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --locked --no-install-project --no-editable --no-dev
 COPY src/ ./src/

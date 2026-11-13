@@ -234,3 +234,7 @@ Settings are `AGENT_REPLAY_*` environment variables read by [`src/agent_replay/c
 | `AGENT_REPLAY_CORS_ORIGINS`, `AGENT_REPLAY_ALLOWED_HOSTS` | none, `localhost,127.0.0.1` | API origins and host allowlist |
 
 To add a model provider, follow [docs/providers.md](docs/providers.md). To host the API and viewer on free tiers, see [deploy/DEPLOY.md](deploy/DEPLOY.md).
+
+## License
+
+[MIT](LICENSE)
