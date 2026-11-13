@@ -1,0 +1,260 @@
+:root {
+  color-scheme: light dark;
+  --bg: #ffffff;
+  --fg: #1f2328;
+  --muted: #59636e;
+  --border: #d1d9e0;
+  --stripe: #f6f8fa;
+  --link: #0969da;
+  --pass-bg: #dafbe1;
+  --pass-fg: #116329;
+  --fail-bg: #ffebe9;
+  --fail-fg: #a40e26;
+  --warn-bg: #fff8c5;
+  --warn-fg: #7d4e00;
+  --neutral-bg: #eff2f5;
+  --neutral-fg: #59636e;
+  --diff-changed: #fff4cc;
+  --diff-added: #d9f5dd;
+  --diff-removed: #fbdada;
+  --diff-first: #c0392b;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0d1117;
+    --fg: #e6edf3;
+    --muted: #9198a1;
+    --border: #3d444d;
+    --stripe: #151b23;
+    --link: #4493f8;
+    --pass-bg: #12361f;
+    --pass-fg: #6fdd8b;
+    --fail-bg: #3d1418;
+    --fail-fg: #ff9492;
+    --warn-bg: #3a2c05;
+    --warn-fg: #e3b341;
+    --neutral-bg: #262c36;
+    --neutral-fg: #9198a1;
+    --diff-changed: #3a2f0b;
+    --diff-added: #12361f;
+    --diff-removed: #3d1418;
+    --diff-first: #f85149;
+  }
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family:
+    system-ui,
+    -apple-system,
+    "Segoe UI",
+    Roboto,
+    "Helvetica Neue",
+    Arial,
+    sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+header,
+main {
+  max-width: 72rem;
+  margin: 0 auto;
+  padding: 0 16px;
+}
+
+header {
+  padding-top: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+header a {
+  font-weight: 600;
+  text-decoration: none;
+}
+
+main {
+  padding-bottom: 32px;
+}
+
+h1 {
+  font-size: 1.5rem;
+  margin: 20px 0 12px;
+  overflow-wrap: anywhere;
+}
+
+h2 {
+  font-size: 1.2rem;
+  margin: 20px 0 8px;
+  overflow-wrap: anywhere;
+}
+
+a {
+  color: var(--link);
+}
+
+p,
+li,
+dd {
+  overflow-wrap: anywhere;
+}
+
+pre {
+  margin: 4px 0;
+  padding: 8px 12px;
+  background: var(--stripe);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 0.85rem;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+dl > div {
+  margin-bottom: 8px;
+}
+
+dt {
+  font-weight: 600;
+}
+
+dd {
+  margin-left: 0;
+}
+
+button {
+  font: inherit;
+  padding: 4px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--stripe);
+  color: var(--fg);
+  cursor: pointer;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.table-wrap {
+  overflow-x: auto;
+  margin: 8px 0;
+}
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 0.9rem;
+}
+
+th,
+td {
+  text-align: left;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+
+thead th {
+  border-bottom-width: 2px;
+  white-space: nowrap;
+}
+
+tbody tr:nth-child(even) {
+  background: var(--stripe);
+}
+
+.suite-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.suite-list a {
+  display: inline-block;
+  padding: 4px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  text-decoration: none;
+}
+
+.suite-list a[aria-current="page"] {
+  background: var(--link);
+  border-color: var(--link);
+  color: var(--bg);
+}
+
+.step-nav {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 12px 0;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.badge {
+  display: inline-block;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  line-height: 1.6;
+  vertical-align: middle;
+  background: var(--neutral-bg);
+  color: var(--neutral-fg);
+}
+
+.badge-ok,
+.badge-complete,
+.badge-pass {
+  background: var(--pass-bg);
+  color: var(--pass-fg);
+}
+
+.badge-error,
+.badge-fail {
+  background: var(--fail-bg);
+  color: var(--fail-fg);
+}
+
+.badge-diverged,
+.badge-stopped,
+.badge-skipped {
+  background: var(--warn-bg);
+  color: var(--warn-fg);
+}
+
+tr.diff-changed {
+  background: var(--diff-changed);
+}
+
+tr.diff-added {
+  background: var(--diff-added);
+}
+
+tr.diff-removed {
+  background: var(--diff-removed);
+}
+
+tr.diff-first {
+  outline: 2px solid var(--diff-first);
+  outline-offset: -2px;
+}
