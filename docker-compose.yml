@@ -1,0 +1,68 @@
+x-app: &app
+  build: .
+  image: agent-replay:local
+  environment:
+    # Dev-only credential for the local db container; never reuse it elsewhere.
+    AGENT_REPLAY_DATABASE_URL: postgresql://postgres:postgres@db:5432/postgres
+
+services:
+  db:
+    image: postgres:18.6-alpine
+    environment:
+      # Dev-only credential for a local container; never reuse it elsewhere.
+      POSTGRES_PASSWORD: postgres
+    ports:
+      # Set AGENT_REPLAY_DB_PORT when a local Postgres already holds 5432.
+      - "127.0.0.1:${AGENT_REPLAY_DB_PORT:-5432}:5432"
+    volumes:
+      # Postgres 18+ keeps its version-specific data dir under /var/lib/postgresql.
+      - pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  migrate:
+    <<: *app
+    command: ["agent-replay", "db", "migrate"]
+    depends_on:
+      db:
+        condition: service_healthy
+
+  seed:
+    <<: *app
+    command:
+      - sh
+      - -c
+      - "set -e; if [ -d evals/baseline ]; then agent-replay fixtures import evals/baseline; fi; if [ -d evals/regression ]; then agent-replay fixtures import evals/regression; fi"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  api:
+    <<: *app
+    environment:
+      AGENT_REPLAY_DATABASE_URL: postgresql://postgres:postgres@db:5432/postgres
+      # The API only reads stored runs and never calls a model, so it gets no model key.
+      # Host names it answers; a browser on this machine reaches it at either.
+      AGENT_REPLAY_ALLOWED_HOSTS: localhost,127.0.0.1
+    ports:
+      - "127.0.0.1:8000:8000"
+    # The slim image has no curl; Python is already there.
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=3)"
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+    depends_on:
+      seed:
+        condition: service_completed_successfully
+
+volumes:
+  pgdata:

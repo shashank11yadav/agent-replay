@@ -1,0 +1,339 @@
+name: Regression gate
+
+# Replays the committed baseline fixtures with this PR's code and prompt, scores the result,
+# gates it against evals/gate.json, publishes the report (step summary + PR comment) and then
+# fails the job on a FAIL or ERROR verdict. See ADR-005.
+#
+# Trigger is pull_request only. The gate job holds a read-only token and no secrets: CI never
+# calls a live model, so every request must hit the fixture cache. If it does, the verdict
+# counts; a needed live call makes the verdict SKIPPED, never a failure. Only the separate
+# comment job, which runs no code from the PR, may write to the pull request.
+#
+# Third-party actions are pinned to full commit SHAs (resolved with git ls-remote; the tag is
+# in the comment next to each pin).
+#
+# IDs are passed between steps through files in gate-ids/, and pull-request data through env,
+# so no untrusted value is interpolated into a run script with an expression. Notices that
+# change how far the verdict can be trusted go to gate-ids/notices and appear above the report
+# in the PR comment.
+#
+# Carried candidate recordings (ADR-011): a PR that changes model requests may carry a
+# fixtures export of its candidate in evals/candidate/, recorded locally against the current
+# baseline with the baseline's provider and models. The job imports it from the PR head only
+# (never from the base commit) after the baseline, so the replay is served from it and the
+# verdict counts instead of being SKIPPED. Trust caveat: with carried recordings CI checks the
+# recorded evidence and does not re-run the model, so a PR could carry fabricated recordings to
+# get a PASS. The baseline fixtures, tasks and thresholds still come from the base commit, so
+# the PR cannot change what it is compared against. Review evals/candidate/ by hand like code,
+# or rerun the gate locally with a live provider, before trusting a PASS.
+# After merge: while evals/baseline/ is unchanged, a merged evals/candidate/ only adds extra
+# cache rows. The re-baselining PR must delete evals/candidate/; a stale one fails the gate
+# until it is deleted or re-recorded.
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: regression-gate-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    services:
+      postgres:
+        image: postgres:18.6-alpine
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - "5432:5432"
+        options: "--health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10"
+    env:
+      UV_LOCKED: "1"
+      AGENT_REPLAY_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+      # A claude_code baseline replays from the fixture cache only: no CLI is installed or run.
+      AGENT_REPLAY_CLAUDE_CLI: ""
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+      - name: Set up uv
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          enable-cache: true
+      # What restoring from the base commit does and does not protect against: imported
+      # fixture responses are served as cache hits, and the task file holds the labels the
+      # candidate is scored against, so a PR that edits evals/baseline/ or loosens
+      # evals/tasks/tasks.jsonl could fabricate a PASS. The baseline fixtures, the task file
+      # (the baseline's task-file hash is tied to it) and the gate thresholds are therefore
+      # taken from the PR base commit. This is defence against fixture and label tampering
+      # only, NOT a trust boundary: under pull_request the PR controls this workflow file and
+      # the gate code in src/, so a hostile PR can drop the restore or make the gate write
+      # PASS. Make this gate a required check only together with code review and CODEOWNERS
+      # (branch protection) on .github/, evals/ and src/.
+      # A re-baseline PR is gated against the old baseline; its new fixtures and tasks apply
+      # after merge. When the base has no baseline yet (the PR that first adds it) the PR's own
+      # files are used, with a notice in the step summary: review evals/ by hand then. When
+      # neither has a baseline, the later steps exit 0 early with a notice (gate-ids/skip).
+      # A missing or malformed base sha stops the job with a clear message instead of
+      # trusting the PR head.
+      - name: Validate the PR base commit
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          if [[ ! "$BASE_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "error: the PR base commit sha is missing or malformed; cannot load the trusted baseline" >&2
+            exit 1
+          fi
+          if [ -e .gate-base ] || [ -L .gate-base ]; then
+            echo "error: .gate-base exists in the PR tree; the path is reserved for the base checkout" >&2
+            exit 1
+          fi
+      # A second checkout authenticates its own fetch, so this also works on private repos.
+      - name: Check out the PR base commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: .gate-base
+          fetch-depth: 1
+          persist-credentials: false
+      # Copies never follow symlinks: any symlink on the copied paths, in the base or the PR
+      # tree, stops the job, and destinations are removed before the copy.
+      - name: Take baseline fixtures, tasks and thresholds from the PR base commit
+        run: |
+          set -euo pipefail
+          base=.gate-base
+          note() {
+            echo "$1"
+            echo "$1" >> "$GITHUB_STEP_SUMMARY"
+            printf '> %s\n\n' "$1" >> gate-ids/notices
+          }
+          fail() {
+            echo "error: $1" >&2
+            exit 1
+          }
+          regular_file() { [ -f "$1" ] && [ ! -L "$1" ]; }
+          real_dir() { [ -d "$1" ] && [ ! -L "$1" ]; }
+          rm -rf gate-ids gate-out
+          mkdir gate-ids
+          for p in evals evals/tasks evals/baseline evals/tasks/tasks.jsonl evals/gate.json; do
+            if [ -L "$p" ] || [ -L "$base/$p" ]; then
+              fail "$p is a symlink; refusing to load the baseline through it"
+            fi
+          done
+          if real_dir "$base/evals/baseline" && regular_file "$base/evals/baseline/manifest.json"; then
+            if [ -n "$(find "$base/evals/baseline" -type l)" ]; then
+              fail "the base commit's evals/baseline contains symlinks"
+            fi
+            regular_file "$base/evals/tasks/tasks.jsonl" || fail "the base commit has evals/baseline but no evals/tasks/tasks.jsonl"
+            rm -rf evals/baseline
+            cp -RP -- "$base/evals/baseline" evals/baseline
+            mkdir -p evals/tasks
+            rm -f evals/tasks/tasks.jsonl
+            cp -P -- "$base/evals/tasks/tasks.jsonl" evals/tasks/tasks.jsonl
+            if regular_file "$base/evals/gate.json"; then
+              rm -f evals/gate.json
+              cp -P -- "$base/evals/gate.json" evals/gate.json
+            else
+              note "Notice: the base commit has a baseline but no evals/gate.json, so this run uses the gate thresholds from this PR. A maintainer must review evals/gate.json by hand before trusting the verdict."
+            fi
+            echo "notice: baseline fixtures, tasks and thresholds loaded from the base commit"
+          elif real_dir evals/baseline && regular_file evals/baseline/manifest.json; then
+            if [ -n "$(find evals/baseline -type l)" ]; then
+              fail "this PR's evals/baseline contains symlinks"
+            fi
+            note "Notice: the base commit has no evals/baseline, so this run uses the fixtures, tasks and thresholds from this PR. A maintainer must review evals/ by hand before trusting the verdict."
+          else
+            note "Notice: no baseline is committed yet (no evals/baseline/manifest.json in the base commit or this PR), so the regression gate is skipped."
+            touch gate-ids/skip
+          fi
+          rm -rf "$base"
+      - name: Migrate database
+        run: uv run agent-replay db migrate
+      # A baseline with skipped runs, stopped runs or missing scores cannot be gated against;
+      # fail here with the list of gaps instead of later with a confusing report.
+      - name: Verify baseline fixtures
+        run: |
+          if [ -f gate-ids/skip ]; then echo "notice: no baseline committed yet; verify skipped"; exit 0; fi
+          uv run agent-replay fixtures verify evals/baseline
+      - name: Import baseline fixtures
+        run: |
+          if [ -f gate-ids/skip ]; then echo "notice: no baseline committed yet; import skipped"; exit 0; fi
+          uv run agent-replay fixtures import evals/baseline
+          uv run python -c 'import json, uuid; print(uuid.UUID(json.load(open("evals/baseline/manifest.json"))["suite_run_id"]))' > gate-ids/baseline
+          echo "baseline suite run: $(cat gate-ids/baseline)"
+      # The baseline pins its provider and models in the manifest (ADR-011). The values are
+      # checked against a strict name pattern before they are written to gate-ids/, and later
+      # steps read them back into shell variables (never an expression, never the job environment file).
+      - name: Read provider and models from the baseline manifest
+        run: |
+          if [ -f gate-ids/skip ]; then echo "notice: no baseline committed yet; manifest read skipped"; exit 0; fi
+          read_key() {
+            uv run python -c 'import json, sys; v = json.load(open("evals/baseline/manifest.json")).get(sys.argv[1]); sys.stdout.write(v if isinstance(v, str) else "")' "$1"
+          }
+          # usage: pin <manifest key> <gate-ids path>
+          pin() {
+            local value
+            value="$(read_key "$1")"
+            if [ -z "$value" ]; then
+              echo "Notice: the baseline manifest has no $1, so the replay uses the default for it." | tee -a "$GITHUB_STEP_SUMMARY"
+              return 0
+            fi
+            if [[ ! "$value" =~ ^[A-Za-z0-9._-]{1,100}$ ]]; then
+              echo "error: baseline manifest $1 is not a valid name (allowed: letters, digits, dot, underscore, hyphen; 1-100 characters)" >&2
+              exit 1
+            fi
+            printf '%s\n' "$value" > "$2"
+          }
+          pin provider gate-ids/provider
+          pin agent_model gate-ids/model
+          pin judge_model gate-ids/judge_model
+      # Carried candidate recordings (ADR-011): taken from the PR head only. They must
+      # match the baseline's provider, models and suite run, and the import refuses any row that
+      # clashes with a baseline row, so they can add cache entries but never replace one.
+      - name: Import carried candidate recordings from this PR
+        run: |
+          if [ -f gate-ids/skip ]; then echo "notice: no baseline committed yet; carried candidate import skipped"; exit 0; fi
+          fail() {
+            echo "error: $1" >&2
+            exit 1
+          }
+          if [ -L evals/candidate ]; then
+            fail "evals/candidate is a symlink; refusing to import carried recordings through it"
+          fi
+          if [ ! -e evals/candidate ]; then
+            echo "notice: this PR carries no evals/candidate/; replaying from the baseline fixtures only"
+            exit 0
+          fi
+          [ -d evals/candidate ] || fail "evals/candidate exists but is not a directory"
+          if [ -n "$(find evals/candidate -type l)" ]; then
+            fail "evals/candidate contains symlinks; refusing to import carried recordings"
+          fi
+          if [ ! -f evals/candidate/manifest.json ]; then
+            fail "evals/candidate/manifest.json is missing; a carried candidate must be a fixtures export"
+          fi
+          # usage: read_key <manifest file> <key>; prints the string value, empty when missing or null
+          read_key() {
+            uv run python -c 'import json, sys; v = json.load(open(sys.argv[1])).get(sys.argv[2]); sys.stdout.write(v or "") if v is None or isinstance(v, str) else sys.exit(sys.argv[2] + " is not a string")' "$1" "$2"
+          }
+          for key in provider agent_model judge_model; do
+            base_value="$(read_key evals/baseline/manifest.json "$key")" || fail "cannot read $key from the baseline manifest"
+            cand_value="$(read_key evals/candidate/manifest.json "$key")" || fail "cannot read $key from evals/candidate/manifest.json"
+            if [ -n "$cand_value" ] && [[ ! "$cand_value" =~ ^[A-Za-z0-9._-]{1,100}$ ]]; then
+              fail "evals/candidate manifest $key is not a valid name (allowed: letters, digits, dot, underscore, hyphen; 1-100 characters)"
+            fi
+            if [ "$cand_value" != "$base_value" ]; then
+              fail "evals/candidate manifest $key differs from the baseline manifest $key; record the candidate with the baseline's provider and models"
+            fi
+          done
+          source_id="$(uv run python -c 'import json, uuid; v = (json.load(open("evals/candidate/manifest.json")).get("suite_run") or {}).get("source_suite_run_id"); print(uuid.UUID(v) if isinstance(v, str) else "")' 2>/dev/null)" || source_id=""
+          baseline="$(cat gate-ids/baseline)"
+          if [ -z "$source_id" ] || [ "$source_id" != "$baseline" ]; then
+            fail "evals/candidate/ was recorded against another baseline (its source suite run is not the baseline suite run $baseline); delete evals/candidate/ or re-record it against the current baseline"
+          fi
+          uv run agent-replay fixtures import evals/candidate || fail "importing evals/candidate failed (a carried row may clash with the baseline); nothing from it was imported"
+          touch gate-ids/carried
+          notice="Notice: this PR carries candidate recordings in evals/candidate/; CI checked the recorded evidence and did not re-run the model; review evals/candidate/ by hand (or run the gate locally with a live provider) before trusting a PASS."
+          echo "$notice"
+          echo "$notice" >> "$GITHUB_STEP_SUMMARY"
+          printf '> %s\n\n' "$notice" >> gate-ids/notices
+      # The replay step writes the candidate id before exiting, so the steps below still
+      # publish an ERROR report when replay stops early (quota, rate limit, run budget).
+      - name: Replay baseline with this PR
+        env:
+          AGENT_REPLAY_RUN_BUDGET_USD: "0.75"
+        run: |
+          if [ -f gate-ids/skip ]; then echo "notice: no baseline committed yet; replay skipped"; exit 0; fi
+          if [ -f gate-ids/provider ]; then export AGENT_REPLAY_PROVIDER="$(cat gate-ids/provider)"; fi
+          if [ -f gate-ids/model ]; then export AGENT_REPLAY_MODEL="$(cat gate-ids/model)"; fi
+          if [ -f gate-ids/judge_model ]; then export AGENT_REPLAY_JUDGE_MODEL="$(cat gate-ids/judge_model)"; fi
+          baseline="$(cat gate-ids/baseline)"
+          variant="$(uv run python -c 'import json; print(json.load(open("evals/suite.json"))["variant"])')"
+          status=0
+          uv run agent-replay suite replay --source "$baseline" --variant "$variant" --tasks evals/tasks/tasks.jsonl --label pr > gate-ids/replay.out || status=$?
+          cat gate-ids/replay.out
+          candidate="$( (grep -v '^[[:space:]]*$' gate-ids/replay.out || true) | tail -n 1 | tr -d '[:space:]')"
+          if [[ "$candidate" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]]; then
+            echo "$candidate" > gate-ids/candidate
+          else
+            echo "error: suite replay printed no candidate suite run id" >&2
+            status=1
+          fi
+          exit "$status"
+      - name: Score candidate
+        if: ${{ !cancelled() }}
+        env:
+          AGENT_REPLAY_RUN_BUDGET_USD: "0.75"
+        run: |
+          if [ -f gate-ids/skip ]; then echo "notice: no baseline committed yet; scoring skipped"; exit 0; fi
+          if [ -f gate-ids/provider ]; then export AGENT_REPLAY_PROVIDER="$(cat gate-ids/provider)"; fi
+          if [ -f gate-ids/model ]; then export AGENT_REPLAY_MODEL="$(cat gate-ids/model)"; fi
+          if [ -f gate-ids/judge_model ]; then export AGENT_REPLAY_JUDGE_MODEL="$(cat gate-ids/judge_model)"; fi
+          candidate="$(cat gate-ids/candidate)"
+          uv run agent-replay suite score --suite-run "$candidate" --tasks evals/tasks/tasks.jsonl
+      - name: Gate (report to the step summary)
+        if: ${{ !cancelled() }}
+        run: |
+          if [ -f gate-ids/skip ]; then echo "notice: no baseline committed yet; gate skipped"; exit 0; fi
+          baseline="$(cat gate-ids/baseline)"
+          candidate="$(cat gate-ids/candidate)"
+          uv run agent-replay gate --baseline "$baseline" --candidate "$candidate" --thresholds evals/gate.json --out-dir gate-out
+      # The notices go above the report, so a PASS that rests on carried recordings or on
+      # this PR's own thresholds does not look like an ordinary one.
+      - name: Build the PR comment
+        if: ${{ !cancelled() }}
+        run: |
+          if [ -f gate-ids/skip ] || [ ! -f gate-out/report.md ]; then echo "notice: no report; PR comment skipped"; exit 0; fi
+          { cat gate-ids/notices 2>/dev/null || true; cat gate-out/report.md; } > gate-out/comment.md
+      - name: Upload the report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: gate-report
+          path: gate-out/
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Gate check
+        if: ${{ !cancelled() }}
+        run: |
+          if [ -f gate-ids/skip ]; then echo "notice: no baseline committed yet; gate check skipped"; exit 0; fi
+          uv run agent-replay gate-check gate-out/verdict.json
+
+  # Posts the report built by the gate job. It runs no code from the PR, so it is the only
+  # job that gets a token that can write to the pull request. Fork PRs are skipped by the
+  # guard (their token is read-only anyway); the `|| echo` fallback means a failed comment
+  # never fails the run, and the job summary always carries the report.
+  comment:
+    needs: gate
+    if: ${{ !cancelled() && github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Download the report
+        id: report
+        continue-on-error: true
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: gate-report
+          path: gate-out
+      - name: Comment on the PR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          if [ ! -f gate-out/comment.md ]; then echo "notice: no report to post; see the gate job summary"; exit 0; fi
+          gh pr comment "$PR_NUMBER" --edit-last --create-if-none -F gate-out/comment.md || echo "notice: could not comment on the PR (read-only token); see the job summary"
