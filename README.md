@@ -235,6 +235,10 @@ Settings are `AGENT_REPLAY_*` environment variables read by [`src/agent_replay/c
 
 To add a model provider, follow [docs/providers.md](docs/providers.md). To host the API and viewer on free tiers, see [deploy/DEPLOY.md](deploy/DEPLOY.md).
 
+## Author
+
+Built by Shashank Yadav. More of my work is at [shashankyadav.dev](https://shashankyadav.dev).
+
 ## License
 
 [MIT](LICENSE)
