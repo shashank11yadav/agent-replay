@@ -10,10 +10,22 @@ from typing import Any
 
 from support.workflow import CI, WF, load_yaml
 
-CHECKOUT = "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1"
-SETUP_PYTHON = "actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0"
-SETUP_UV = "astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2"
-SETUP_NODE = "actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1"
+
+def pinned(action: str) -> str:
+    """The one `action@<commit sha>` ci.yml uses. Which commit is Dependabot's to bump."""
+    refs = set(re.findall(rf"uses: ({re.escape(action)}@\S+)", CI.read_text()))
+    assert len(refs) == 1, f"{action} must be used at exactly one ref, got {refs}"
+    ref = refs.pop()
+    assert re.fullmatch(r"[\w./-]+@[0-9a-f]{40}", ref), (
+        f"{ref} is not pinned to a commit"
+    )
+    return ref
+
+
+CHECKOUT = pinned("actions/checkout")
+SETUP_PYTHON = pinned("actions/setup-python")
+SETUP_UV = pinned("astral-sh/setup-uv")
+SETUP_NODE = pinned("actions/setup-node")
 
 
 def load_ci() -> dict[str, Any]:
@@ -166,14 +178,17 @@ def _steps(job: dict[str, Any]) -> list[dict[str, Any]]:
     return s
 
 
-def test_viewer_job_uses_pinned_checkout_and_setup_node_with_node_22() -> None:
+def test_viewer_job_uses_pinned_checkout_and_setup_node_22_or_later() -> None:
     job = viewer_job()
     uses = [s["uses"] for s in _steps(job) if "uses" in s]
     assert CHECKOUT in uses
     assert SETUP_NODE in uses
     sn = next(s for s in _steps(job) if s.get("uses") == SETUP_NODE)
     version = str(sn.get("with", {}).get("node-version"))
-    assert re.fullmatch(r"22(\.\d+)*(\.x)?", version), version
+    m = re.fullmatch(r"(\d+)(\.\d+)*(\.x)?", version)
+    assert m and int(m.group(1)) >= 22, (
+        f"viewer/package.json needs node >= 22, got {version}"
+    )
     # setup-node must come before any run step
     idx = [i for i, s in enumerate(_steps(job)) if s.get("uses") == SETUP_NODE]
     first_run = next(i for i, s in enumerate(_steps(job)) if "run" in s)
