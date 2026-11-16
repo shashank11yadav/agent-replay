@@ -4,6 +4,8 @@ Record an LLM agent run once, replay it offline as often as you like, score it, 
 
 agent-replay stores every model call and tool call of an agent run in Postgres, replays runs deterministically from a request-hash cache, scores them with deterministic checks and an LLM judge, and compares a candidate suite with a committed baseline on pass rate, tokens and p95 latency. A GitHub Actions workflow runs that comparison on every pull request with no API key and no live model call. A React viewer steps through a run and diffs two runs side by side.
 
+Walk through one recorded run, the 30-task board and the gate on the [project page](https://shashank11yadav.github.io/agent-replay/).
+
 ![Suite runs in the viewer](docs/images/viewer-runs.png)
 
 ## Why
@@ -206,7 +208,8 @@ evals/        tasks, gate thresholds, committed baseline and regression fixtures
 tests/        unit, integration, providers, evals, repo and docs tests
 docs/         design notes, decision records, provider guide, case study
 deploy/       optional free-tier hosting guide
-scripts/      offline-gate.sh
+site/         the project page, published to GitHub Pages
+scripts/      offline-gate.sh, and site_data.py, which builds the page data from evals/
 ```
 
 ## Development
