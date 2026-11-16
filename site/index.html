@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agent Replay</title>
+<meta name="description" content="Record an LLM agent run once, replay it offline, score it, and fail the pull request that makes the agent worse.">
+<meta property="og:title" content="Agent Replay">
+<meta property="og:description" content="Regression tests for LLM agents. Record a run once, replay it offline, and gate every pull request.">
+<meta property="og:image" content="images/viewer-diff.webp">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet"> <!-- taste-skill-ignore: mono only for code and identifiers -->
+<link rel="stylesheet" href="styles.css">
+<script>document.documentElement.classList.add('js')</script>
+</head>
+<body>
+
+<header class="nav">
+  <div class="wrap nav-row">
+    <a class="brand" href="./"><img src="favicon.svg" width="22" height="22" alt=""> Agent Replay</a>
+    <nav class="nav-links" aria-label="Sections">
+      <a href="#how">How it works</a>
+      <a href="#results">Results</a>
+      <a href="#viewer">Viewer</a>
+      <a href="#start">Quick start</a>
+    </nav>
+    <a class="btn btn-dark btn-sm" href="https://github.com/shashank11yadav/agent-replay">GitHub</a>
+  </div>
+</header>
+
+<main>
+
+<section class="hero wrap">
+  <div class="hero-copy">
+    <h1 class="h1" data-rise style="--i:0">Regression tests for LLM agents</h1>
+    <p class="lead" data-rise style="--i:1">Agent Replay records every model call and tool call of an agent run, replays it offline at no cost, scores it, and fails the pull request that makes the agent worse.</p>
+    <div class="cta-row" data-rise style="--i:2">
+      <a class="btn btn-dark" href="https://github.com/shashank11yadav/agent-replay">View on GitHub</a>
+      <a class="btn btn-light" href="https://github.com/shashank11yadav/agent-replay/pull/1">See a blocked pull request</a>
+    </div>
+    <ul class="facts" data-rise style="--i:3">
+      <li>Python 3.12 and Postgres</li>
+      <li>Runs offline in CI</li>
+      <li>MIT licence</li>
+    </ul>
+  </div>
+
+  <div class="player" data-ui id="player" aria-label="Replay of task T11" data-rise style="--i:2">
+    <div class="player-head">
+      <div>
+        <p class="caption">Task T11</p>
+        <p class="player-q" id="p-question">What is the total of order A1001 in EUR?</p>
+      </div>
+      <div class="seg" role="group" aria-label="Agent prompt">
+        <button type="button" data-variant="baseline" aria-pressed="true">Baseline</button>
+        <button type="button" data-variant="regressed" aria-pressed="false">Changed prompt</button>
+      </div>
+    </div>
+    <ol class="steps" id="p-steps" aria-live="polite"></ol>
+    <div class="answer" id="p-answer"></div>
+    <div class="player-foot">
+      <ul class="checks" id="p-checks"></ul>
+      <div class="player-bar">
+        <p class="verdict" id="p-verdict"></p>
+        <button type="button" class="btn btn-light btn-sm" id="p-play">Replay</button>
+      </div>
+    </div>
+    <noscript><p class="noscript">With the baseline prompt the agent looked up order A1001, converted 99.65 USD and answered 91.68 EUR. With the changed prompt it skipped both tools and failed three of five checks.</p></noscript>
+  </div>
+</section>
+
+<section class="band" id="how" aria-labelledby="how-title">
+  <div class="wrap">
+    <div class="section-head" data-reveal>
+      <h2 class="h2" id="how-title">How it works</h2>
+      <p class="sub">One run of task T11, followed through the four stages. Every figure below is from the committed recordings.</p>
+    </div>
+    <div class="how">
+      <div class="tabs" data-ui role="tablist" aria-label="Stages" id="tabs"></div>
+      <div class="panel" data-ui id="stage-panel" role="tabpanel" aria-live="polite"></div>
+    </div>
+  </div>
+</section>
+
+<section class="wrap section" id="results" aria-labelledby="results-title">
+  <div class="section-head" data-reveal>
+    <h2 class="h2" id="results-title">A real regression, caught</h2>
+    <p class="sub">Pull request 1 edits the agent's prompt. The gate replays all 30 tasks with the new prompt and compares them with the committed baseline.</p>
+  </div>
+
+  <dl class="metrics" data-ui data-reveal id="metrics"></dl>
+
+  <div class="table-wrap" data-ui>
+    <div class="table-head">
+      <p class="table-title">Tasks</p>
+      <p class="caption">Select a task to compare the two answers</p>
+    </div>
+    <table class="tasks">
+      <thead><tr><th scope="col">Task</th><th scope="col">Question</th><th scope="col" class="num hide-sm">Baseline</th><th scope="col" class="num hide-sm">Changed</th><th scope="col" class="num">Result</th></tr></thead>
+      <tbody id="tasks"></tbody>
+    </table>
+    <button type="button" class="table-more" id="tasks-more" aria-expanded="false">Show all 30 tasks</button>
+  </div>
+</section>
+
+<section class="band" aria-labelledby="diff-title">
+  <div class="wrap split">
+    <div class="split-copy" data-reveal>
+      <h2 class="h2" id="diff-title">The change behind it</h2>
+      <p>The edit drops the rule to look facts up with the tools and asks for long, detailed explanations instead.</p>
+      <p>On task T11 the agent then answered from one model call, used no tools, and wrote 939 tokens without the converted total. Mean output tokens across the suite roughly doubled, yet total tokens fell, because the agent made fewer calls. A check on token count alone would have passed it.</p>
+    </div>
+    <div class="code-panel" data-ui data-reveal>
+      <p class="code-title"><code>src/agent_replay/demo/prompts/structured.txt</code></p>
+      <pre class="diff"><code id="prompt-diff"></code></pre>
+    </div>
+  </div>
+</section>
+
+<section class="wrap section" id="viewer" aria-labelledby="viewer-title">
+  <div class="section-head" data-reveal>
+    <h2 class="h2" id="viewer-title">Every run, step by step</h2>
+    <p class="sub">A small React viewer, served by the API, shows suites, single runs and diffs between two runs.</p>
+  </div>
+  <div class="shots">
+    <figure class="shot shot-wide" data-reveal>
+      <div class="frame"><img src="images/viewer-diff.webp" width="1400" height="856" loading="lazy" alt="The viewer's diff page for task T11: the first divergence is highlighted at step 1, and the four steps the changed prompt skipped are marked removed."></div>
+      <figcaption>Diff of task T11 under both prompts, with the first divergence marked.</figcaption>
+    </figure>
+    <figure class="shot" data-reveal>
+      <div class="frame"><img src="images/viewer-suite.webp" width="1400" height="1527" loading="lazy" alt="The viewer's suite page: 30 runs of the baseline prompt with status, pass or fail, total tokens and latency for each task."></div>
+      <figcaption>A suite of 30 runs with status, tokens and latency.</figcaption>
+    </figure>
+    <figure class="shot" data-reveal>
+      <div class="frame"><img src="images/viewer-regressed-answer.webp" width="1400" height="1112" loading="lazy" alt="The changed prompt's only model call for task T11: a long reply that never looks up the order, with 939 output tokens and a cache miss."></div>
+      <figcaption>The changed prompt's answer to T11, a cache miss that never looks up the order.</figcaption>
+    </figure>
+  </div>
+</section>
+
+<section class="band" aria-labelledby="eng-title">
+  <div class="wrap split">
+    <div class="split-copy" data-reveal>
+      <h2 class="h2" id="eng-title">Engineering</h2>
+      <p>Tests run against a real Postgres, provider behaviour is checked by a shared conformance kit, and the gate's own shell steps run in the test suite.</p>
+    </div>
+    <dl class="facts-grid" data-reveal>
+      <div><dt>1,168</dt><dd>Python tests: unit, integration on Postgres, provider conformance and CLI</dd></div>
+      <div><dt>112</dt><dd>viewer tests with Vitest and Testing Library</dd></div>
+      <div><dt>$1.20</dt><dd>of model calls at list prices to record every suite</dd></div>
+      <div><dt>$0.00</dt><dd>per pull request, because CI replays from the recordings</dd></div>
+      <div><dt>11</dt><dd>architecture decision records</dd></div>
+      <div><dt>3</dt><dd>model providers behind one interface, plus an offline fake</dd></div>
+    </dl>
+  </div>
+</section>
+
+<section class="wrap section" id="start" aria-labelledby="start-title">
+  <div class="split">
+    <div class="split-copy" data-reveal>
+      <h2 class="h2" id="start-title">Run it locally</h2>
+      <p>One command starts Postgres, loads the recorded runs and serves the viewer at 127.0.0.1:8000. You don't need an API key or a model login.</p>
+      <p><a class="link" href="https://github.com/shashank11yadav/agent-replay#readme">Read the full guide</a></p>
+    </div>
+    <div class="code-panel" data-ui data-reveal>
+      <div class="code-bar">
+        <p class="code-title">Terminal</p>
+        <button type="button" class="copy" id="copy">Copy</button>
+      </div>
+<pre><code id="cmd">git clone https://github.com/shashank11yadav/agent-replay.git
+cd agent-replay
+docker compose up --build --wait</code></pre>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer class="footer">
+  <div class="wrap footer-row">
+    <div>
+      <a class="brand" href="./"><img src="favicon.svg" width="22" height="22" alt=""> Agent Replay</a>
+      <p class="caption">Example data is a made-up shop. Runs recorded on 12 November 2026.</p>
+    </div>
+    <ul class="footer-links">
+      <li><a href="https://github.com/shashank11yadav/agent-replay">Repository</a></li>
+      <li><a href="https://github.com/shashank11yadav/agent-replay/blob/main/docs/design.md">Design notes</a></li>
+      <li><a href="https://github.com/shashank11yadav/agent-replay/blob/main/docs/case-study.md">Case study</a></li>
+      <li><a href="https://github.com/shashank11yadav/agent-replay/blob/main/LICENSE">MIT licence</a></li>
+    </ul>
+    <p class="byline">Built by <a href="https://shashankyadav.dev">shashankyadav.dev</a></p>
+  </div>
+</footer>
+
+<script src="data.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
