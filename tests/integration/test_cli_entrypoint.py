@@ -145,7 +145,7 @@ def test_settings_reads_every_env_var(clean_env: pytest.MonkeyPatch) -> None:
     assert s.seed == 99
     assert str(s.viewer_dist) == "/srv/dist"
     assert s.has_gemini_key is True
-    assert "http://a.example" in list(s.cors_origins)
+    assert list(s.cors_origins) == ["http://a.example"]
 
 
 # ---- Settings: validation -----------------------------------------------
