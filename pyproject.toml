@@ -22,7 +22,7 @@ dependencies = [
     "pydantic-settings==2.16.3",
     "opentelemetry-api==1.45.2",
     "opentelemetry-sdk==1.45.2",
-    "fastapi==0.163.2",
+    "fastapi==0.165.0",
     "uvicorn==0.54.0",
     # gemini.py catches httpx transport errors; do not rely on google-genai pulling it in.
     "httpx==0.28.1",
